@@ -221,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: _sendPasswordResetEmail,
                         child: const Text(
                           'Нууц үг мартсан?',
                           style: TextStyle(
@@ -309,6 +309,24 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _sendPasswordResetEmail() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _showMessage('Нууц үг сэргээх зөв имэйл оруулна уу');
+      return;
+    }
+
+    final error = await AuthService.sendPasswordResetEmail(email);
+    if (!mounted) return;
+
+    if (error != null) {
+      _showMessage(error);
+      return;
+    }
+
+    _showMessage('Нууц үг сэргээх имэйл илгээгдлээ');
   }
 
   Widget _googleButton() {

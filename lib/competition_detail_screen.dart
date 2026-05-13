@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'models.dart';
 import 'competition_service.dart';
 
@@ -15,36 +16,54 @@ class CompetitionDetailScreen extends StatefulWidget {
 class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
   bool isExpanded = false;
   bool isBookmarked = false;
-  bool isRegistering = false;
+  bool isSending = false;
+  String? myRequestStatus; // null | 'pending' | 'accepted' | 'rejected'
+  bool loadingStatus = true;
 
-  Future<void> register() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadMyStatus();
+  }
+
+  Future<void> _loadMyStatus() async {
+    final status =
+        await CompetitionService.getMyRequestStatus(widget.item.id);
+    if (mounted) {
+      setState(() {
+        myRequestStatus = status;
+        loadingStatus = false;
+      });
+    }
+  }
+
+  Future<void> _sendRequest() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showSnack('Эхлээд нэвтрэнэ үү');
+      return;
+    }
+
+    setState(() => isSending = true);
     try {
-      setState(() => isRegistering = true);
-
-      await CompetitionService.registerToCompetition(widget.item);
-
+      await CompetitionService.sendParticipationRequest(widget.item);
       if (!mounted) return;
-
-      setState(() => isRegistering = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Бүртгэл амжилттай хадгалагдлаа'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      setState(() {
+        myRequestStatus = 'pending';
+        isSending = false;
+      });
+      _showSnack('Оролцох хүсэлт амжилттай илгээгдлээ!');
     } catch (e) {
       if (!mounted) return;
-
-      setState(() => isRegistering = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Бүртгүүлэхэд алдаа гарлаа: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      setState(() => isSending = false);
+      _showSnack('Алдаа гарлаа: $e');
     }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -58,6 +77,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
+            // ── Expandable image header ───────────────────────────────────
             SliverAppBar(
               expandedHeight: 300,
               pinned: true,
@@ -66,20 +86,19 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
               leading: Padding(
                 padding: const EdgeInsets.only(left: 10),
                 child: CircleAvatar(
-                  backgroundColor: Colors.white.withOpacity(0.9),
+                  backgroundColor:
+                      Colors.white.withValues(alpha: 0.9),
                   child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 18,
-                      color: Colors.black,
-                    ),
+                    icon: const Icon(Icons.arrow_back_ios_new,
+                        size: 18, color: Colors.black),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ),
               ),
               actions: [
                 CircleAvatar(
-                  backgroundColor: Colors.white.withOpacity(0.9),
+                  backgroundColor:
+                      Colors.white.withValues(alpha: 0.9),
                   child: IconButton(
                     icon: Icon(
                       isBookmarked
@@ -87,24 +106,18 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                           : Icons.bookmark_border_rounded,
                       color: isBookmarked ? orange : Colors.black,
                     ),
-                    onPressed: () {
-                      setState(() => isBookmarked = !isBookmarked);
-                    },
+                    onPressed: () =>
+                        setState(() => isBookmarked = !isBookmarked),
                   ),
                 ),
                 const SizedBox(width: 10),
                 CircleAvatar(
-                  backgroundColor: Colors.white.withOpacity(0.9),
+                  backgroundColor:
+                      Colors.white.withValues(alpha: 0.9),
                   child: IconButton(
-                    icon: const Icon(Icons.share_outlined, color: Colors.black),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Түгээх хэсэг дараа нэмэгдэнэ'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
+                    icon: const Icon(Icons.share_outlined,
+                        color: Colors.black),
+                    onPressed: () => _showSnack('Түгээх хэсэг удахгүй нэмэгдэнэ'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -113,15 +126,15 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _image(item.imageUrl, double.infinity),
+                    _networkImage(item.imageUrl, double.infinity),
                     Container(
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withOpacity(0.05),
-                            Colors.black.withOpacity(0.55),
+                            Color(0x0D000000),
+                            Color(0x8C000000),
                           ],
                         ),
                       ),
@@ -150,7 +163,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 27,
+                              fontSize: 26,
                               fontWeight: FontWeight.w900,
                               height: 1.1,
                             ),
@@ -163,211 +176,69 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
               ),
             ),
 
+            // ── Content ───────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 120),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Tags
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: item.tags.map((tag) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF3D1),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: yellow.withOpacity(0.4)),
-                          ),
-                          child: Text(
-                            tag,
-                            style: const TextStyle(
-                              color: Color(0xFF6B5600),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                      children: item.tags.map((tag) => _tag(tag)).toList(),
                     ),
 
                     const SizedBox(height: 18),
 
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _cardDecoration(),
-                      child: Column(
-                        children: [
-                          _infoRow(
-                            icon: Icons.calendar_month_outlined,
-                            title: 'Бүртгэлийн хугацаа',
-                            value: item.date,
-                          ),
-                          const Divider(),
-                          _infoRow(
-                            icon: Icons.payments_outlined,
-                            title: 'Хураамж',
-                            value: item.fee.isEmpty ? 'Үнэгүй' : item.fee,
-                          ),
-                          const Divider(),
-                          _infoRow(
-                            icon: Icons.description_outlined,
-                            title: 'Бүрдүүлэх материал',
-                            value: item.materials.isEmpty
-                                ? 'Тодорхойгүй'
-                                : item.materials,
-                          ),
-                          const Divider(),
-                          _infoRow(
-                            icon: Icons.category_outlined,
-                            title: 'Төрөл',
-                            value: item.category,
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Info card
+                    _infoCard(item, orange),
 
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 18),
 
-                    Row(
-                      children: [
-                        const Text(
-                          'Тайлбар',
-                          style: TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton.icon(
-                          onPressed: () {
-                            setState(() => isExpanded = !isExpanded);
-                          },
-                          icon: Icon(
-                            isExpanded
-                                ? Icons.keyboard_arrow_up
-                                : Icons.keyboard_arrow_down,
-                            color: orange,
-                          ),
-                          label: Text(
-                            isExpanded ? 'Хураах' : 'Дэлгэрэнгүй',
-                            style: const TextStyle(
-                              color: orange,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Description
+                    _descriptionSection(orange),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 18),
 
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: _cardDecoration(),
-                      child: Text(
-                        item.fullDescription.isEmpty
-                            ? 'Тайлбар оруулаагүй байна.'
-                            : item.fullDescription,
-                        maxLines: isExpanded ? null : 7,
-                        overflow: isExpanded
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.55,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                    // Prizes (if available)
+                    if (item.prizes.isNotEmpty) ...[
+                      _sectionTitle('Шагнал'),
+                      const SizedBox(height: 10),
+                      _textCard(item.prizes, Icons.workspace_premium_outlined, orange),
+                      const SizedBox(height: 18),
+                    ],
 
-                    const SizedBox(height: 22),
+                    // Rules (if available)
+                    if (item.rules.isNotEmpty) ...[
+                      _sectionTitle('Дүрэм журам'),
+                      const SizedBox(height: 10),
+                      _textCard(item.rules, Icons.gavel_outlined, orange),
+                      const SizedBox(height: 18),
+                    ],
 
-                    const Text(
-                      'Poster',
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                    // Contact info
+                    if (item.contactInfo.isNotEmpty) ...[
+                      _sectionTitle('Холбоо барих'),
+                      const SizedBox(height: 10),
+                      _textCard(
+                          item.contactInfo, Icons.contact_phone_outlined, orange),
+                      const SizedBox(height: 18),
+                    ],
 
+                    // Poster
+                    _sectionTitle('Poster'),
                     const SizedBox(height: 12),
+                    _posterWidget(item.posterUrl),
 
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: item.posterUrl.isEmpty
-                          ? Container(
-                              height: 230,
-                              width: double.infinity,
-                              color: Colors.white,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image_not_supported_outlined,
-                                  size: 42,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            )
-                          : Image.network(
-                              item.posterUrl,
-                              height: 230,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                height: 230,
-                                width: double.infinity,
-                                color: Colors.white,
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.image_not_supported_outlined,
-                                    size: 42,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            ),
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    const Text(
-                      'Холбоос',
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: _cardDecoration(),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.link, color: orange),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SelectableText(
-                              item.linkText.isEmpty
-                                  ? 'Холбоос оруулаагүй'
-                                  : item.linkText,
-                              style: const TextStyle(
-                                color: Colors.blue,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Link
+                    if (item.linkText.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      _sectionTitle('Холбоос'),
+                      const SizedBox(height: 10),
+                      _linkCard(item.linkText, orange),
+                    ],
                   ],
                 ),
               ),
@@ -376,113 +247,347 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
         ),
       ),
 
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 18,
-              offset: const Offset(0, -6),
+      // ── Bottom action bar ─────────────────────────────────────────────
+      bottomNavigationBar: _bottomBar(orange),
+    );
+  }
+
+  Widget _infoCard(CompetitionItem item, Color orange) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        children: [
+          _infoRow(
+            icon: Icons.calendar_month_outlined,
+            title: 'Бүртгэлийн хугацаа',
+            value: item.date,
+            orange: orange,
+          ),
+          if (item.registrationDeadline != null) ...[
+            const Divider(),
+            _infoRow(
+              icon: Icons.event_busy_outlined,
+              title: 'Бүртгэл хаагдах',
+              value:
+                  '${item.registrationDeadline!.year}.${item.registrationDeadline!.month.toString().padLeft(2, '0')}.${item.registrationDeadline!.day.toString().padLeft(2, '0')}',
+              orange: orange,
             ),
           ],
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(22),
-            topRight: Radius.circular(22),
+          const Divider(),
+          _infoRow(
+            icon: Icons.category_outlined,
+            title: 'Ангилал',
+            value: item.category,
+            orange: orange,
+          ),
+          const Divider(),
+          _infoRow(
+            icon: Icons.people_outline,
+            title: 'Оролцох хэлбэр',
+            value: item.participationType.isEmpty ? 'Тодорхойгүй' : item.participationType,
+            orange: orange,
+          ),
+          if (item.location.isNotEmpty) ...[
+            const Divider(),
+            _infoRow(
+              icon: Icons.place_outlined,
+              title: 'Байршил',
+              value: item.location,
+              orange: orange,
+            ),
+          ],
+          if (item.ageCategory.isNotEmpty) ...[
+            const Divider(),
+            _infoRow(
+              icon: Icons.person_outline,
+              title: 'Насны ангилал',
+              value: item.ageCategory,
+              orange: orange,
+            ),
+          ],
+          if (item.genderCategory.isNotEmpty) ...[
+            const Divider(),
+            _infoRow(
+              icon: Icons.wc_outlined,
+              title: 'Хүйсийн ангилал',
+              value: item.genderCategory,
+              orange: orange,
+            ),
+          ],
+          if (item.maxParticipants > 0) ...[
+            const Divider(),
+            _infoRow(
+              icon: Icons.group_outlined,
+              title: 'Дээд хязгаар',
+              value: '${item.maxParticipants} оролцогч',
+              orange: orange,
+            ),
+          ],
+          const Divider(),
+          _infoRow(
+            icon: Icons.payments_outlined,
+            title: 'Хураамж',
+            value: item.fee.isEmpty ? 'Үнэгүй' : item.fee,
+            orange: orange,
+          ),
+          if (item.materials.isNotEmpty) ...[
+            const Divider(),
+            _infoRow(
+              icon: Icons.fact_check_outlined,
+              title: 'Бүрдүүлэх материал',
+              value: item.materials,
+              orange: orange,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _descriptionSection(Color orange) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _sectionTitle('Тайлбар'),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () =>
+                  setState(() => isExpanded = !isExpanded),
+              icon: Icon(
+                isExpanded
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                color: orange,
+              ),
+              label: Text(
+                isExpanded ? 'Хураах' : 'Дэлгэрэнгүй',
+                style: TextStyle(
+                    color: orange, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: _cardDecoration(),
+          child: Text(
+            widget.item.fullDescription.isEmpty
+                ? 'Тайлбар оруулаагүй байна.'
+                : widget.item.fullDescription,
+            maxLines: isExpanded ? null : 7,
+            overflow: isExpanded
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.55,
+              color: Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3D1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: IconButton(
-                  onPressed: () {
-                    setState(() => isBookmarked = !isBookmarked);
-                  },
-                  icon: Icon(
-                    isBookmarked
-                        ? Icons.bookmark
-                        : Icons.bookmark_border_rounded,
-                    color: orange,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: isRegistering ? null : register,
-                    icon: isRegistering
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.app_registration_rounded),
-                    label: Text(
-                      isRegistering ? 'Бүртгэж байна...' : 'Бүртгүүлэх',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: orange,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+      ],
+    );
+  }
+
+  Widget _bottomBar(Color orange) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, -6),
           ),
+        ],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(22),
+          topRight: Radius.circular(22),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3D1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: IconButton(
+                onPressed: () =>
+                    setState(() => isBookmarked = !isBookmarked),
+                icon: Icon(
+                  isBookmarked
+                      ? Icons.bookmark
+                      : Icons.bookmark_border_rounded,
+                  color: orange,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: _requestButton(orange)),
+          ],
         ),
       ),
     );
   }
 
-  Widget _image(String url, double height) {
-    if (url.isEmpty) {
+  Widget _requestButton(Color orange) {
+    if (loadingStatus) {
       return Container(
-        height: height,
-        width: double.infinity,
-        color: Colors.grey.shade300,
-        child: const Icon(
-          Icons.image_not_supported_outlined,
-          size: 45,
-          color: Colors.grey,
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (myRequestStatus == 'pending') {
+      return Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: Colors.orange.withValues(alpha: 0.4)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.hourglass_top_rounded,
+                color: Colors.orange, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Хүлээгдэж байна...',
+              style: TextStyle(
+                color: Colors.orange,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return Image.network(
-      url,
-      height: height,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        height: height,
-        width: double.infinity,
-        color: Colors.grey.shade300,
-        child: const Icon(
-          Icons.image_not_supported_outlined,
-          size: 45,
-          color: Colors.grey,
+    if (myRequestStatus == 'accepted') {
+      return Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.green.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: Colors.green.withValues(alpha: 0.4)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline,
+                color: Colors.green, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Бүртгэгдсэн',
+              style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (myRequestStatus == 'rejected') {
+      return SizedBox(
+        height: 52,
+        child: ElevatedButton.icon(
+          onPressed: isSending ? null : _sendRequest,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text(
+            'Дахин хүсэлт илгээх',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+      );
+    }
+
+    // No request yet
+    return SizedBox(
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: isSending ? null : _sendRequest,
+        icon: isSending
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.send_rounded),
+        label: Text(
+          isSending ? 'Илгээж байна...' : 'Оролцох хүсэлт илгээх',
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: orange,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  Widget _sectionTitle(String text) {
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+    );
+  }
+
+  Widget _tag(String tag) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3D1),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+            color: const Color(0xFFF5C400).withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        tag,
+        style: const TextStyle(
+          color: Color(0xFF6B5600),
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
         ),
       ),
     );
@@ -492,9 +597,8 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
     required IconData icon,
     required String title,
     required String value,
+    required Color orange,
   }) {
-    const orange = Color(0xFFFF6A00);
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -507,7 +611,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
               color: const Color(0xFFFFF3D1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: orange, size: 21),
+            child: Icon(icon, color: orange, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -522,7 +626,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: const TextStyle(
@@ -540,13 +644,117 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
     );
   }
 
+  Widget _textCard(String text, IconData icon, Color orange) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: orange, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _linkCard(String url, Color orange) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Icon(Icons.link, color: orange),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SelectableText(
+              url,
+              style: const TextStyle(
+                color: Colors.blue,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _posterWidget(String url) {
+    if (url.isEmpty) {
+      return Container(
+        height: 200,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Center(
+          child: Icon(Icons.image_not_supported_outlined,
+              size: 42, color: Colors.grey),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Image.network(
+        url,
+        height: 230,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          height: 200,
+          color: Colors.white,
+          child: const Center(
+              child: Icon(Icons.broken_image_outlined,
+                  size: 42, color: Colors.grey)),
+        ),
+      ),
+    );
+  }
+
+  Widget _networkImage(String url, double height) {
+    if (url.isEmpty) {
+      return Container(
+        height: height,
+        color: Colors.grey.shade300,
+        child: const Icon(Icons.image_not_supported_outlined,
+            size: 45, color: Colors.grey),
+      );
+    }
+    return Image.network(
+      url,
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        height: height,
+        color: Colors.grey.shade300,
+        child: const Icon(Icons.broken_image_outlined,
+            size: 45, color: Colors.grey),
+      ),
+    );
+  }
+
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.055),
+          color: Colors.black.withValues(alpha: 0.055),
           blurRadius: 16,
           offset: const Offset(0, 8),
         ),

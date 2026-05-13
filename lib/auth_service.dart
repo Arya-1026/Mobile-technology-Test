@@ -10,21 +10,20 @@ class AuthService {
 
   static User? get currentUser => _auth.currentUser;
 
-  // Google-р нэвтрэх
   static Future<UserCredential?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount googleUser = await GoogleSignIn.instance
-          .authenticate();
+      final GoogleSignInAccount googleUser =
+          await GoogleSignIn.instance.authenticate();
 
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          googleUser.authentication;
 
       final OAuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
       );
 
-      final UserCredential userCredential = await _auth.signInWithCredential(
-        credential,
-      );
+      final UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
 
       final User? user = userCredential.user;
 
@@ -34,20 +33,18 @@ class AuthService {
 
       return userCredential;
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        return null;
-      }
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
       throw Exception('Google-р нэвтрэхэд алдаа гарлаа: ${e.description}');
     } catch (e) {
       throw Exception('Google-р нэвтрэхэд алдаа гарлаа: $e');
     }
   }
 
-  // Email-р бүртгүүлэх
   static Future<String?> register({
     required String name,
     required String email,
     required String password,
+    List<String> sportPreferences = const [],
   }) async {
     try {
       final UserCredential credential = await _auth
@@ -55,9 +52,7 @@ class AuthService {
 
       final User? user = credential.user;
 
-      if (user == null) {
-        return 'Хэрэглэгч үүсгэхэд алдаа гарлаа';
-      }
+      if (user == null) return 'Хэрэглэгч үүсгэхэд алдаа гарлаа';
 
       await user.updateDisplayName(name);
 
@@ -70,6 +65,8 @@ class AuthService {
         phone: '',
         registerNumber: '',
         canCreateCompetition: false,
+        sportPreferences: sportPreferences,
+        activeRole: 'participant',
       );
 
       await _db.collection('users').doc(user.uid).set(appUser.toMap());
@@ -82,7 +79,6 @@ class AuthService {
     }
   }
 
-  // Email-р нэвтрэх
   static Future<String?> login({
     required String email,
     required String password,
@@ -107,41 +103,31 @@ class AuthService {
     }
   }
 
-  // Одоогийн хэрэглэгчийн Firestore мэдээлэл авах
   static Future<AppUser?> getCurrentAppUser() async {
     final User? user = _auth.currentUser;
-
     if (user == null) return null;
 
-    final DocumentSnapshot<Map<String, dynamic>> doc = await _db
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    final DocumentSnapshot<Map<String, dynamic>> doc =
+        await _db.collection('users').doc(user.uid).get();
 
-    if (!doc.exists || doc.data() == null) {
-      return null;
-    }
+    if (!doc.exists || doc.data() == null) return null;
 
     return AppUser.fromMap(doc.id, doc.data()!);
   }
 
-  // Admin эсэх шалгах
   static Future<bool> isAdmin() async {
     final AppUser? appUser = await getCurrentAppUser();
     return appUser?.role == 'admin';
   }
 
-  // Гарах
   static Future<void> logout() async {
     await GoogleSignIn.instance.signOut();
     await _auth.signOut();
   }
 
-  // Firestore дээр user байхгүй бол шинээр үүсгэнэ
   static Future<void> _createUserIfNotExists(User user) async {
-    final DocumentReference<Map<String, dynamic>> userRef = _db
-        .collection('users')
-        .doc(user.uid);
+    final DocumentReference<Map<String, dynamic>> userRef =
+        _db.collection('users').doc(user.uid);
 
     final DocumentSnapshot<Map<String, dynamic>> userDoc = await userRef.get();
 
@@ -155,6 +141,8 @@ class AuthService {
         phone: '',
         registerNumber: '',
         canCreateCompetition: false,
+        sportPreferences: [],
+        activeRole: 'participant',
       );
 
       await userRef.set({
@@ -164,5 +152,14 @@ class AuthService {
     }
   }
 
-  static Future<dynamic> sendPasswordResetEmail(String email) async {}
+  static Future<String?> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return e.message ?? 'Нууц үг сэргээх имэйл илгээхэд алдаа гарлаа';
+    } catch (e) {
+      return 'Нууц үг сэргээх имэйл илгээхэд алдаа гарлаа: $e';
+    }
+  }
 }

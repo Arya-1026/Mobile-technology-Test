@@ -1,21 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
     function isAdmin() {
       return signedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update, delete: if isAdmin() || request.auth.uid == uid;
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();
     }
+
+    // ── Competitions ───────────────────────────────────────────────────────
     match /competitions/{id} {
+      // Only approved competitions visible to all; organizers see their own
       allow read: if signedIn();
       allow create: if signedIn();
-      allow update, delete: if isAdmin() || request.auth.uid == resource.data.ownerId;
+      allow update: if isAdmin() || request.auth.uid == resource.data.ownerId;
+      allow delete: if isAdmin() || request.auth.uid == resource.data.ownerId;
     }
+
+    // ── Participation requests (competitionRequests) ────────────────────────
+    match /competitionRequests/{id} {
+      // Participant can read their own; competition owner and admin can read all
+      allow read: if signedIn() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.userId ||
+        request.auth.uid == resource.data.ownerId
+      );
+      allow create: if signedIn();
+      // Organizer or admin can update status
+      allow update: if isAdmin() || request.auth.uid == resource.data.ownerId;
+      allow delete: if isAdmin();
+    }
+
+    // ── Organizer requests ─────────────────────────────────────────────────
+    match /organizerRequests/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Legacy registrations ───────────────────────────────────────────────
     match /registrations/{id} {
       allow read: if signedIn() && (isAdmin() || request.auth.uid == resource.data.userId);
       allow create: if signedIn();
