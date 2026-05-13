@@ -66,12 +66,14 @@ class TeamMember {
   final String name;
   final String email;
   final String photoUrl;
+  final String position;
 
   TeamMember({
     required this.uid,
     required this.name,
     required this.email,
     required this.photoUrl,
+    this.position = 'Member',
   });
 
   factory TeamMember.fromMap(Map<String, dynamic> data) {
@@ -80,11 +82,284 @@ class TeamMember {
       name: data['name'] ?? '',
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
+      position: data['position'] ?? 'Member',
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {'uid': uid, 'name': name, 'email': email, 'photoUrl': photoUrl};
+    return {
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'photoUrl': photoUrl,
+      'position': position,
+    };
+  }
+}
+
+class CompetitionTeam {
+  final String id;
+  final String competitionId;
+  final String competitionTitle;
+  final String sportCategory;
+  final String name;
+  final String description;
+  final String logoUrl;
+  final String leaderId;
+  final String leaderName;
+  final String leaderEmail;
+  final int maxMembers;
+  final List<String> memberIds;
+  final List<TeamMember> members;
+  final DateTime? createdAt;
+
+  CompetitionTeam({
+    required this.id,
+    required this.competitionId,
+    required this.competitionTitle,
+    required this.sportCategory,
+    required this.name,
+    required this.description,
+    required this.logoUrl,
+    required this.leaderId,
+    required this.leaderName,
+    required this.leaderEmail,
+    required this.maxMembers,
+    required this.memberIds,
+    required this.members,
+    this.createdAt,
+  });
+
+  factory CompetitionTeam.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return CompetitionTeam(
+      id: doc.id,
+      competitionId: data['competitionId'] ?? '',
+      competitionTitle: data['competitionTitle'] ?? '',
+      sportCategory: data['sportCategory'] ?? '',
+      name: data['name'] ?? '',
+      description: data['description'] ?? '',
+      logoUrl: data['logoUrl'] ?? '',
+      leaderId: data['leaderId'] ?? '',
+      leaderName: data['leaderName'] ?? '',
+      leaderEmail: data['leaderEmail'] ?? '',
+      maxMembers: (data['maxMembers'] ?? 5) as int,
+      memberIds: List<String>.from(data['memberIds'] ?? []),
+      members: (data['members'] as List<dynamic>? ?? [])
+          .map((e) => TeamMember.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
+}
+
+class TeamInvite {
+  final String id;
+  final String teamId;
+  final String teamName;
+  final String competitionId;
+  final String competitionTitle;
+  final String sportCategory;
+  final String leaderId;
+  final String leaderName;
+  final String toUid;
+  final String toEmail;
+  final String toName;
+  final String status;
+  final DateTime? expiresAt;
+  final DateTime? createdAt;
+
+  TeamInvite({
+    required this.id,
+    required this.teamId,
+    required this.teamName,
+    required this.competitionId,
+    required this.competitionTitle,
+    required this.sportCategory,
+    required this.leaderId,
+    required this.leaderName,
+    required this.toUid,
+    required this.toEmail,
+    required this.toName,
+    required this.status,
+    this.expiresAt,
+    this.createdAt,
+  });
+
+  factory TeamInvite.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return TeamInvite(
+      id: doc.id,
+      teamId: data['teamId'] ?? '',
+      teamName: data['teamName'] ?? '',
+      competitionId: data['competitionId'] ?? '',
+      competitionTitle: data['competitionTitle'] ?? '',
+      sportCategory: data['sportCategory'] ?? '',
+      leaderId: data['leaderId'] ?? '',
+      leaderName: data['leaderName'] ?? '',
+      toUid: data['toUid'] ?? '',
+      toEmail: data['toEmail'] ?? '',
+      toName: data['toName'] ?? '',
+      status: data['status'] ?? 'Pending',
+      expiresAt: data['expiresAt'] is Timestamp
+          ? (data['expiresAt'] as Timestamp).toDate()
+          : null,
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
+}
+
+class RegisteredCompetition {
+  final String id;
+  final String userId;
+  final String competitionId;
+  final String competitionTitle;
+  final String category;
+  final String date;
+  final String location;
+  final String registrationStatus;
+  final String teamId;
+  final String teamName;
+  final String participationType;
+  final String matchResult;
+  final String resultStatus;
+  final String score;
+  final DateTime? createdAt;
+
+  RegisteredCompetition({
+    required this.id,
+    required this.userId,
+    required this.competitionId,
+    required this.competitionTitle,
+    required this.category,
+    required this.date,
+    required this.location,
+    required this.registrationStatus,
+    required this.teamId,
+    required this.teamName,
+    required this.participationType,
+    this.matchResult = '',
+    this.resultStatus = '',
+    this.score = '',
+    this.createdAt,
+  });
+
+  factory RegisteredCompetition.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return RegisteredCompetition(
+      id: doc.id,
+      userId: data['userId'] ?? '',
+      competitionId: data['competitionId'] ?? '',
+      competitionTitle: data['competitionTitle'] ?? '',
+      category: data['category'] ?? '',
+      date: data['date'] ?? '',
+      location: data['location'] ?? '',
+      registrationStatus: data['registrationStatus'] ?? 'Registered',
+      teamId: data['teamId'] ?? '',
+      teamName: data['teamName'] ?? '',
+      participationType: data['participationType'] ?? 'Individual',
+      matchResult: data['matchResult'] ?? '',
+      resultStatus: data['resultStatus'] ?? '',
+      score: data['score'] ?? '',
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
+}
+
+class BracketMatch {
+  final String id;
+  final String competitionId;
+  final int round;
+  final int matchNo;
+  final String teamAId;
+  final String teamAName;
+  final String teamBId;
+  final String teamBName;
+  final String winnerTeamId;
+  final String loserTeamId;
+  final String score;
+  final String status;
+  final String note;
+  final DateTime? updatedAt;
+
+  BracketMatch({
+    required this.id,
+    required this.competitionId,
+    required this.round,
+    required this.matchNo,
+    required this.teamAId,
+    required this.teamAName,
+    required this.teamBId,
+    required this.teamBName,
+    this.winnerTeamId = '',
+    this.loserTeamId = '',
+    this.score = '',
+    this.status = 'Scheduled',
+    this.note = '',
+    this.updatedAt,
+  });
+
+  factory BracketMatch.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return BracketMatch(
+      id: doc.id,
+      competitionId: data['competitionId'] ?? '',
+      round: (data['round'] ?? 1) as int,
+      matchNo: (data['matchNo'] ?? 1) as int,
+      teamAId: data['teamAId'] ?? '',
+      teamAName: data['teamAName'] ?? '',
+      teamBId: data['teamBId'] ?? '',
+      teamBName: data['teamBName'] ?? '',
+      winnerTeamId: data['winnerTeamId'] ?? '',
+      loserTeamId: data['loserTeamId'] ?? '',
+      score: data['score'] ?? '',
+      status: data['status'] ?? 'Scheduled',
+      note: data['note'] ?? '',
+      updatedAt: data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
+}
+
+class TeamNotification {
+  final String id;
+  final String userId;
+  final String title;
+  final String body;
+  final String type;
+  final bool read;
+  final DateTime? createdAt;
+
+  TeamNotification({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.body,
+    required this.type,
+    required this.read,
+    this.createdAt,
+  });
+
+  factory TeamNotification.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return TeamNotification(
+      id: doc.id,
+      userId: data['userId'] ?? '',
+      title: data['title'] ?? '',
+      body: data['body'] ?? '',
+      type: data['type'] ?? '',
+      read: data['read'] ?? false,
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
+    );
   }
 }
 
@@ -116,6 +391,7 @@ class CompetitionItem {
   final String location;
   final String ageCategory;
   final int maxParticipants;
+  final int maxTeamMembers;
   final String genderCategory;
   final String prizes;
   final String rules;
@@ -148,6 +424,7 @@ class CompetitionItem {
     this.location = '',
     this.ageCategory = 'Бүх насны',
     this.maxParticipants = 0,
+    this.maxTeamMembers = 5,
     this.genderCategory = 'Бүх хүйс',
     this.prizes = '',
     this.rules = '',
@@ -204,6 +481,7 @@ class CompetitionItem {
       location: data['location'] ?? '',
       ageCategory: data['ageCategory'] ?? 'Бүх насны',
       maxParticipants: (data['maxParticipants'] ?? 0) as int,
+      maxTeamMembers: (data['maxTeamMembers'] ?? 5) as int,
       genderCategory: data['genderCategory'] ?? 'Бүх хүйс',
       prizes: data['prizes'] ?? '',
       rules: data['rules'] ?? '',
@@ -246,6 +524,7 @@ class CompetitionItem {
       'location': location,
       'ageCategory': ageCategory,
       'maxParticipants': maxParticipants,
+      'maxTeamMembers': maxTeamMembers,
       'genderCategory': genderCategory,
       'prizes': prizes,
       'rules': rules,

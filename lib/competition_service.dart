@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'demo_competitions.dart';
 import 'models.dart';
 
 class CompetitionService {
@@ -10,19 +12,29 @@ class CompetitionService {
   static CollectionReference get _requests =>
       _db.collection('competitionRequests');
 
-  // ---- Competition CRUD ----
-
   static Stream<List<CompetitionItem>> approvedCompetitions({
     String? category,
     List<String>? preferredCategories,
   }) {
+    final isAllCategory = category == null ||
+        category == 'Бүгд' ||
+        category == 'Ð‘Ò¯Ð³Ð´';
+
     Query query = _col.where('status', isEqualTo: 'approved');
-    if (category != null && category != 'Бүгд') {
+    if (!isAllCategory) {
       query = query.where('category', isEqualTo: category);
     }
-    return query.snapshots().map((s) {
+
+    return query.snapshots().map((snapshot) {
       final items =
-          s.docs.map((d) => CompetitionItem.fromDoc(d)).toList();
+          snapshot.docs.map((doc) => CompetitionItem.fromDoc(doc)).toList();
+
+      items.addAll(
+        isAllCategory
+            ? DemoCompetitions.all
+            : DemoCompetitions.byCategory(category!),
+      );
+
       if (preferredCategories != null && preferredCategories.isNotEmpty) {
         items.sort((a, b) {
           final aMatch = preferredCategories.contains(a.category) ? 0 : 1;
@@ -30,6 +42,7 @@ class CompetitionService {
           return aMatch.compareTo(bMatch);
         });
       }
+
       return items;
     });
   }
@@ -54,7 +67,9 @@ class CompetitionService {
   }
 
   static Future<void> updateCompetition(
-      String id, Map<String, dynamic> data) async {
+    String id,
+    Map<String, dynamic> data,
+  ) async {
     await _col.doc(id).update(data);
   }
 
@@ -73,14 +88,10 @@ class CompetitionService {
     });
   }
 
-  // ---- Participation Requests ----
-
-  /// Send a participation request for a competition
   static Future<void> sendParticipationRequest(CompetitionItem item) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Нэвтрээгүй байна');
 
-    // Check if already requested
     final existing = await _requests
         .where('competitionId', isEqualTo: item.id)
         .where('userId', isEqualTo: user.uid)
@@ -90,8 +101,7 @@ class CompetitionService {
       throw Exception('Та энэ тэмцээнд аль хэдийн хүсэлт илгээсэн байна');
     }
 
-    final userDoc =
-        await _db.collection('users').doc(user.uid).get();
+    final userDoc = await _db.collection('users').doc(user.uid).get();
     final userData = userDoc.data() ?? {};
 
     await _requests.add({
@@ -105,9 +115,22 @@ class CompetitionService {
       'rejectionReason': '',
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    await _db.collection('registeredCompetitions').doc('${item.id}_${user.uid}').set({
+      'userId': user.uid,
+      'competitionId': item.id,
+      'competitionTitle': item.title,
+      'category': item.category,
+      'date': item.date,
+      'location': item.location,
+      'registrationStatus': 'Pending',
+      'teamId': '',
+      'teamName': '',
+      'participationType': 'Individual',
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
-  /// Get my participation requests (for participant)
   static Stream<List<ParticipationRequest>> myParticipationRequests() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return const Stream.empty();
@@ -118,9 +141,9 @@ class CompetitionService {
             s.docs.map((d) => ParticipationRequest.fromDoc(d)).toList());
   }
 
-  /// Get requests for a specific competition (for organizer)
   static Stream<List<ParticipationRequest>> competitionParticipationRequests(
-      String competitionId) {
+    String competitionId,
+  ) {
     return _requests
         .where('competitionId', isEqualTo: competitionId)
         .snapshots()
@@ -128,7 +151,6 @@ class CompetitionService {
             s.docs.map((d) => ParticipationRequest.fromDoc(d)).toList());
   }
 
-  /// Update participation request status (accept/reject)
   static Future<void> updateParticipationRequest(
     String requestId,
     String status, {
@@ -140,7 +162,6 @@ class CompetitionService {
     });
   }
 
-  /// Get current user's request status for a competition
   static Future<String?> getMyRequestStatus(String competitionId) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return null;
@@ -154,14 +175,11 @@ class CompetitionService {
     return snap.docs.first['status'] as String?;
   }
 
-  // ---- Organizer Requests ----
-
   static Future<void> sendOrganizerRequest() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Нэвтрээгүй байна');
 
-    final userDoc =
-        await _db.collection('users').doc(user.uid).get();
+    final userDoc = await _db.collection('users').doc(user.uid).get();
     final userData = userDoc.data() ?? {};
 
     await _db.collection('organizerRequests').doc(user.uid).set({
@@ -175,11 +193,9 @@ class CompetitionService {
   }
 
   static Stream<List<OrganizerRequest>> allOrganizerRequests() {
-    return _db
-        .collection('organizerRequests')
-        .snapshots()
-        .map((s) =>
-            s.docs.map((d) => OrganizerRequest.fromDoc(d)).toList());
+    return _db.collection('organizerRequests').snapshots().map(
+          (s) => s.docs.map((d) => OrganizerRequest.fromDoc(d)).toList(),
+        );
   }
 
   static Future<void> updateOrganizerRequest(
@@ -220,12 +236,10 @@ class CompetitionService {
     await batch.commit();
   }
 
-  /// Switch user's active role
   static Future<void> switchActiveRole(String uid, String role) async {
     await _db.collection('users').doc(uid).update({'activeRole': role});
   }
 
-  // Legacy: register directly (keep for backward compat)
   static Future<void> registerToCompetition(
     CompetitionItem item, {
     List<TeamMember> team = const [],

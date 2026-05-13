@@ -5,26 +5,30 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_service.dart';
 import 'login_screen.dart';
 import 'competition_form_screen.dart';
+import 'competition_detail_screen.dart';
 import 'competition_service.dart';
 import 'models.dart';
 
 import 'change_password_screen.dart';
-import 'devices_screen.dart';
 import 'my_registrations_screen.dart';
 import 'achievements_screen.dart';
 import 'my_requests_screen.dart';
+import 'team_invites_screen.dart';
+import 'team_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   Future<void> _logout(BuildContext context) async {
-    await AuthService.logout();
-    if (!context.mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+    try {
+      await AuthService.logout().timeout(const Duration(seconds: 4));
+    } finally {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _updateUserField({
@@ -197,17 +201,6 @@ class ProfileScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                tooltip: 'Гарах',
-                                onPressed: () => _logout(context),
-                                style: IconButton.styleFrom(
-                                  backgroundColor:
-                                      Colors.black.withValues(alpha: 0.18),
-                                  foregroundColor: Colors.white,
-                                ),
-                                icon: const Icon(Icons.logout_rounded),
-                              ),
                             ],
                           ),
 
@@ -331,12 +324,9 @@ class ProfileScreen extends StatelessWidget {
                               yellow: yellow,
                             ),
 
-                          // Add competition button (if organizer and active role is organizer)
-                          if ((canCreate || isAdmin) &&
-                              (activeRole == 'organizer' || isAdmin)) ...[
-                            const SizedBox(height: 10),
-                            _addCompetitionButton(context, yellow),
-                          ],
+                          const SizedBox(height: 14),
+
+                          _registeredCompetitionsList(),
 
                           const SizedBox(height: 14),
 
@@ -400,6 +390,18 @@ class ProfileScreen extends StatelessWidget {
                                     MaterialPageRoute(
                                       builder: (_) =>
                                           const MyRequestsScreen(),
+                                    ),
+                                  ),
+                                ),
+                                _menu(
+                                  icon: Icons.mark_email_unread_outlined,
+                                  title: 'Team invites',
+                                  subtitle: 'Багийн урилга, accept / reject',
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const TeamInvitesScreen(),
                                     ),
                                   ),
                                 ),
@@ -532,6 +534,15 @@ class ProfileScreen extends StatelessWidget {
                                           const EdgeInsets.only(bottom: 10),
                                       decoration: _cardDecoration(),
                                       child: ListTile(
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                CompetitionDetailScreen(
+                                              item: item,
+                                            ),
+                                          ),
+                                        ),
                                         leading: _statusDot(item.status),
                                         title: Text(
                                           item.title,
@@ -924,46 +935,110 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _addCompetitionButton(BuildContext context, Color yellow) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const CompetitionFormScreen(),
+  Widget _registeredCompetitionsList() {
+    return StreamBuilder<List<RegisteredCompetition>>(
+      stream: TeamService.myRegisteredCompetitions(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Container(
+            padding: const EdgeInsets.all(18),
+            decoration: _cardDecoration(),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        final items = snapshot.data!;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: _cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Бүртгүүлсэн тэмцээнүүд',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'Одоогоор бүртгүүлсэн тэмцээн байхгүй байна',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                )
+              else
+                ...items.map((item) => _registeredCompetitionTile(item)),
+            ],
           ),
         );
       },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        decoration: BoxDecoration(
-          color: yellow,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: yellow.withValues(alpha: 0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.add_box_rounded, color: Colors.white),
-            SizedBox(width: 14),
+    );
+  }
+
+  Widget _registeredCompetitionTile(RegisteredCompetition item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.competitionTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _miniChip(Icons.category_outlined, item.category),
+              _miniChip(Icons.calendar_month_outlined, item.date),
+              _miniChip(Icons.place_outlined, item.location),
+              _miniChip(Icons.verified_outlined, item.registrationStatus),
+              _miniChip(
+                Icons.groups_2_outlined,
+                item.teamName.isEmpty ? 'Ганцаарчилсан' : item.teamName,
+              ),
+            ],
+          ),
+          if (item.matchResult.isNotEmpty) ...[
+            const SizedBox(height: 8),
             Text(
-              'Тэмцээн нэмэх',
+              '${item.resultStatus} · ${item.score} · ${item.matchResult}',
               style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
+                color: item.resultStatus == 'Won' ? Colors.green : Colors.red,
+                fontWeight: FontWeight.w800,
               ),
             ),
-            Spacer(),
-            Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniChip(IconData icon, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Text(value, style: const TextStyle(fontSize: 12)),
+        ],
       ),
     );
   }

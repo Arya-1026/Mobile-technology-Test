@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -37,6 +38,7 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
   final rules = TextEditingController();
   final contactInfo = TextEditingController();
   final maxParticipants = TextEditingController();
+  final maxTeamMembers = TextEditingController();
 
   final ImagePicker picker = ImagePicker();
 
@@ -64,6 +66,21 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
     'Үндэсний хэмжээний',
     'Дэлхийн хэмжээний',
     'Sport/E-Sport',
+    'Football',
+    'Basketball',
+    'Volleyball',
+    'Tennis',
+    'Running',
+    'Swimming',
+    'Martial Arts',
+    'Esports',
+    'Table Tennis',
+    'Chess',
+    'Badminton',
+    'Cycling',
+    'Athletics',
+    'MMA',
+    'Wrestling',
     'Урлаг',
     'Шинжлэх ухаан',
     'Нийгэм, эдийн засаг',
@@ -103,6 +120,7 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
       contactInfo.text = item.contactInfo;
       maxParticipants.text =
           item.maxParticipants > 0 ? item.maxParticipants.toString() : '';
+      maxTeamMembers.text = item.maxTeamMembers.toString();
 
       category = item.category;
       scope = item.scope.isEmpty ? scope : item.scope;
@@ -135,6 +153,7 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
     rules.dispose();
     contactInfo.dispose();
     maxParticipants.dispose();
+    maxTeamMembers.dispose();
     super.dispose();
   }
 
@@ -187,8 +206,9 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Нэвтрээгүй байна');
 
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
+      final safeName =
+          pickedFile.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$safeName';
 
       final ref = FirebaseStorage.instance
           .ref()
@@ -196,10 +216,12 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
           .child(user.uid)
           .child(fileName);
 
-      await ref.putData(
-        imageBytes,
-        SettableMetadata(contentType: pickedFile.mimeType ?? 'image/jpeg'),
-      );
+      await ref
+          .putData(
+            imageBytes,
+            SettableMetadata(contentType: pickedFile.mimeType ?? 'image/jpeg'),
+          )
+          .timeout(const Duration(seconds: 45));
       final downloadUrl = await ref.getDownloadURL();
 
       setState(() {
@@ -217,9 +239,12 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
         uploadingPoster = false;
       });
       if (!mounted) return;
+      final message = e is TimeoutException
+          ? 'Зураг upload хэт удаж байна. Firebase Storage CORS тохиргоог шалгана уу.'
+          : 'Зураг upload хийхэд алдаа: $e';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Зураг upload хийхэд алдаа: $e'),
+          content: Text(message),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -250,6 +275,7 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
     setState(() => isSaving = true);
 
     final parsedMax = int.tryParse(maxParticipants.text.trim()) ?? 0;
+    final parsedTeamMax = int.tryParse(maxTeamMembers.text.trim()) ?? 5;
 
     final item = CompetitionItem(
       id: widget.editItem?.id ?? '',
@@ -280,6 +306,7 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
       location: location.text.trim(),
       ageCategory: ageCategory,
       maxParticipants: parsedMax,
+      maxTeamMembers: parsedTeamMax,
       genderCategory: genderCategory,
       prizes: prizes.text.trim(),
       rules: rules.text.trim(),
@@ -344,6 +371,13 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
                     'Дэлгэрэнгүй тайлбар',
                     Icons.description_outlined,
                     maxLines: 5,
+                  ),
+                  _optionalField(
+                    maxTeamMembers,
+                    'Нэг багийн гишүүний лимит',
+                    Icons.groups_2_outlined,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                 ],
               ),

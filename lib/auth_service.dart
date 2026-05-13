@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'models.dart';
+import 'team_service.dart';
 
 class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -29,6 +30,7 @@ class AuthService {
 
       if (user != null) {
         await _createUserIfNotExists(user);
+        await TeamService.linkPendingEmailInvites(user);
       }
 
       return userCredential;
@@ -70,6 +72,7 @@ class AuthService {
       );
 
       await _db.collection('users').doc(user.uid).set(appUser.toMap());
+      await TeamService.linkPendingEmailInvites(user);
 
       return null;
     } on FirebaseAuthException catch (e) {
@@ -93,6 +96,7 @@ class AuthService {
 
       if (user != null) {
         await _createUserIfNotExists(user);
+        await TeamService.linkPendingEmailInvites(user);
       }
 
       return null;
@@ -121,8 +125,15 @@ class AuthService {
   }
 
   static Future<void> logout() async {
-    await GoogleSignIn.instance.signOut();
     await _auth.signOut();
+
+    try {
+      await GoogleSignIn.instance.signOut().timeout(
+            const Duration(seconds: 3),
+          );
+    } catch (_) {
+      // Email/password users may not have an active Google session.
+    }
   }
 
   static Future<void> _createUserIfNotExists(User user) async {
