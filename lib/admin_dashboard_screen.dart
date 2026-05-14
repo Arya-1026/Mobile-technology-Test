@@ -221,9 +221,9 @@ class _CompetitionCard extends StatelessWidget {
           ClipRRect(
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(16)),
-            child: item.imageUrl.isNotEmpty
+            child: item.displayImageUrl.isNotEmpty
                 ? Image.network(
-                    item.imageUrl,
+                    item.displayImageUrl,
                     height: 120,
                     width: double.infinity,
                     fit: BoxFit.cover,

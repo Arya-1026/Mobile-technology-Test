@@ -62,6 +62,12 @@ class CompetitionService {
         .map((s) => s.docs.map((d) => CompetitionItem.fromDoc(d)).toList());
   }
 
+  static Future<CompetitionItem?> getCompetition(String id) async {
+    final doc = await _col.doc(id).get();
+    if (!doc.exists) return null;
+    return CompetitionItem.fromDoc(doc);
+  }
+
   static Future<void> addCompetition(CompetitionItem item) async {
     await _col.add(item.toMap());
   }

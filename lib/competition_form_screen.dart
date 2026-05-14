@@ -111,8 +111,8 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
       fee.text = item.fee;
       materials.text = item.materials;
       organization.text = item.organizationName;
-      imageUrl.text = item.imageUrl;
-      posterUrl.text = item.posterUrl;
+      imageUrl.text = item.displayImageUrl;
+      posterUrl.text = item.displayPosterUrl;
       link.text = item.linkText;
       location.text = item.location;
       prizes.text = item.prizes;
@@ -325,7 +325,11 @@ class _CompetitionFormScreenState extends State<CompetitionFormScreen> {
     setState(() => isSaving = false);
 
     _showSnack(
-      widget.isAdmin ? 'Тэмцээн нийтлэгдлээ' : 'Тэмцээн хянуулахаар илгээгдлээ',
+      widget.isAdmin
+          ? 'Тэмцээн нийтлэгдлээ'
+          : widget.editItem != null
+              ? 'Тэмцээн амжилттай шинэчлэгдлээ'
+              : 'Тэмцээн хянуулахаар илгээгдлээ',
     );
 
     Navigator.pop(context);

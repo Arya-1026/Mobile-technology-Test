@@ -315,7 +315,7 @@ class _FeaturedCard extends StatelessWidget {
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(16)),
-              child: item.imageUrl.isEmpty
+              child: item.displayImageUrl.isEmpty
                   ? Container(
                       height: 140,
                       width: double.infinity,
@@ -324,7 +324,7 @@ class _FeaturedCard extends StatelessWidget {
                           color: Colors.grey),
                     )
                   : Image.network(
-                      item.imageUrl,
+                      item.displayImageUrl,
                       height: 140,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -418,7 +418,7 @@ class _ListCard extends StatelessWidget {
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
                   left: Radius.circular(16)),
-              child: item.imageUrl.isEmpty
+              child: item.displayImageUrl.isEmpty
                   ? Container(
                       width: 80,
                       height: 80,
@@ -427,7 +427,7 @@ class _ListCard extends StatelessWidget {
                           color: Colors.grey),
                     )
                   : Image.network(
-                      item.imageUrl,
+                      item.displayImageUrl,
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,

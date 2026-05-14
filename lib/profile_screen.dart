@@ -947,6 +947,20 @@ class ProfileScreen extends StatelessWidget {
           );
         }
         final items = snapshot.data!;
+        final activeItems = items
+            .where((item) =>
+                item.tournamentStatus != 'Eliminated' &&
+                item.registrationStatus != 'Archived' &&
+                item.registrationStatus != 'Removed' &&
+                item.resultStatus != 'Lost')
+            .toList();
+        final archivedItems = items
+            .where((item) =>
+                item.tournamentStatus == 'Eliminated' ||
+                item.registrationStatus == 'Archived' ||
+                item.registrationStatus == 'Removed' ||
+                item.resultStatus == 'Lost')
+            .toList();
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
@@ -967,8 +981,19 @@ class ProfileScreen extends StatelessWidget {
                     style: TextStyle(color: Colors.grey.shade700),
                   ),
                 )
-              else
-                ...items.map((item) => _registeredCompetitionTile(item)),
+              else ...[
+                _competitionGroup(
+                  title: 'Одоо оролцож байна',
+                  items: activeItems,
+                  active: true,
+                ),
+                const SizedBox(height: 12),
+                _competitionGroup(
+                  title: 'Өмнө оролцсон тэмцээнүүд',
+                  items: archivedItems,
+                  active: false,
+                ),
+              ],
             ],
           ),
         );
@@ -1019,6 +1044,184 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _competitionGroup({
+    required String title,
+    required List<RegisteredCompetition> items,
+    required bool active,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              active ? Icons.play_circle_outline : Icons.history_rounded,
+              size: 18,
+              color: active ? Colors.green : Colors.grey.shade700,
+            ),
+            const SizedBox(width: 6),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (items.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F8F8),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              active
+                  ? 'Одоогоор идэвхтэй тэмцээн байхгүй.'
+                  : 'Archive тэмцээн байхгүй.',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          )
+        else
+          ...items.map((item) => _trackingCompetitionTile(item, active)),
+      ],
+    );
+  }
+
+  Widget _trackingCompetitionTile(RegisteredCompetition item, bool active) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFEFFAF1) : const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color:
+              active ? Colors.green.withValues(alpha: 0.35) : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.competitionTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _miniChip(Icons.category_outlined, item.category),
+              _miniChip(Icons.groups_2_outlined,
+                  item.teamName.isEmpty ? 'Ганцаарчилсан' : item.teamName),
+              _miniChip(Icons.verified_outlined, item.registrationStatus),
+              if (item.resultStatus.isNotEmpty)
+                _miniChip(Icons.trending_up_outlined, item.resultStatus),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _bracketPreview(item, active),
+          if (item.eliminatedRound.isNotEmpty || item.finalResult.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (item.eliminatedRound.isNotEmpty)
+                  _miniChip(Icons.flag_outlined, item.eliminatedRound),
+                if (item.finalResult.isNotEmpty)
+                  _miniChip(Icons.fact_check_outlined, item.finalResult),
+              ],
+            ),
+          ],
+          if (item.matchHistory.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'Match history',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            ...item.matchHistory.reversed.take(4).map(_historyRow),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _bracketPreview(RegisteredCompetition item, bool active) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: active
+              ? Colors.green.withValues(alpha: 0.2)
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          _miniChip(
+            Icons.account_tree_outlined,
+            item.bracketSummary.isEmpty ? 'Bracket pending' : item.bracketSummary,
+          ),
+          _miniChip(
+            Icons.sports_martial_arts_outlined,
+            item.nextOpponent.isEmpty ? 'Opponent TBD' : item.nextOpponent,
+          ),
+          _miniChip(
+            Icons.schedule_outlined,
+            item.matchTime.isEmpty ? 'Time TBD' : item.matchTime,
+          ),
+          _miniChip(
+            Icons.layers_outlined,
+            item.currentRound.isEmpty ? 'Round TBD' : item.currentRound,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _historyRow(Map<String, dynamic> history) {
+    final result = history['result']?.toString() ?? '';
+    final color = result == 'Won' ? Colors.green : Colors.red;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            result == 'Won'
+                ? Icons.check_circle_outline
+                : Icons.cancel_outlined,
+            size: 16,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'R${history['round'] ?? '-'} vs ${history['opponentTeam'] ?? 'TBD'}',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ),
+          Text(
+            '${history['score'] ?? ''}',
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
+          ),
         ],
       ),
     );

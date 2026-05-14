@@ -15,6 +15,11 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isCompetitionOwner(competitionId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/competitions/$(competitionId)).data.ownerId == request.auth.uid;
+    }
+
     // ── Users ──────────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read: if signedIn();
@@ -90,7 +95,13 @@ service cloud.firestore {
     match /bracketMatches/{id} {
       allow read: if signedIn();
       allow create, update: if signedIn();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isCompetitionOwner(resource.data.competitionId);
+    }
+
+    match /matchResults/{id} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if isAdmin() || isCompetitionOwner(resource.data.competitionId);
     }
 
     match /organizerRequests/{uid} {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'models.dart';
 import 'competition_service.dart';
+import 'competition_form_screen.dart';
 import 'competition_results_screen.dart';
 import 'team_management_screen.dart';
 import 'team_service.dart';
@@ -260,6 +261,22 @@ class _TeamCardState extends State<_TeamCard> {
                           leading: _memberAvatar(member, 36),
                           title: Text(member.name),
                           subtitle: Text(member.position),
+                          trailing: isLeader && member.uid != team.leaderId
+                              ? IconButton(
+                                  tooltip: 'Remove member',
+                                  icon: const Icon(
+                                    Icons.person_remove_outlined,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () async {
+                                    final shouldClose =
+                                        await _confirmRemoveMember(member);
+                                    if (shouldClose && context.mounted) {
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                )
+                              : null,
                         ),
                       ),
                       if (isLeader) ...[
@@ -331,6 +348,44 @@ class _TeamCardState extends State<_TeamCard> {
                             label: const Text('Нэрээр/username-аар хайж урих'),
                           ),
                         ),
+                        StreamBuilder<List<TeamInvite>>(
+                          stream: TeamService.invitesForTeam(team.id),
+                          builder: (context, snapshot) {
+                            final invites =
+                                snapshot.data ?? const <TeamInvite>[];
+                            if (invites.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: invites
+                                    .take(8)
+                                    .map(
+                                      (invite) => Chip(
+                                        visualDensity: VisualDensity.compact,
+                                        avatar: Icon(
+                                          _inviteStatusIcon(invite.status),
+                                          size: 15,
+                                          color: _inviteStatusColor(
+                                              invite.status),
+                                        ),
+                                        label: Text(
+                                          '${invite.toEmail} · ${invite.status}',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        backgroundColor: _inviteStatusColor(
+                                                invite.status)
+                                            .withValues(alpha: 0.1),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            );
+                          },
+                        ),
                         const SizedBox(height: 8),
                       ],
                     ],
@@ -342,6 +397,51 @@ class _TeamCardState extends State<_TeamCard> {
         );
       },
     ).whenComplete(() => emailCtrl.dispose());
+  }
+
+  Future<bool> _confirmRemoveMember(TeamMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove member'),
+        content: Text('${member.name} гишүүнийг багаас хасах уу?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await TeamService.removeMember(widget.team, member.uid);
+      if (!mounted) return true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Гишүүн багаас хасагдлаа'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Алдаа: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
+    }
   }
 
   @override
@@ -538,6 +638,32 @@ class _TeamCardState extends State<_TeamCard> {
   }
 }
 
+Color _inviteStatusColor(String status) {
+  switch (status) {
+    case 'Accepted':
+      return Colors.green;
+    case 'Rejected':
+      return Colors.red;
+    case 'Expired':
+      return Colors.grey;
+    default:
+      return Colors.orange;
+  }
+}
+
+IconData _inviteStatusIcon(String status) {
+  switch (status) {
+    case 'Accepted':
+      return Icons.check_circle_outline;
+    case 'Rejected':
+      return Icons.cancel_outlined;
+    case 'Expired':
+      return Icons.timer_off_outlined;
+    default:
+      return Icons.hourglass_top_outlined;
+  }
+}
+
 class _UserInviteTile extends StatefulWidget {
   final AppUser user;
   final CompetitionTeam team;
@@ -636,6 +762,7 @@ class _UserInviteTileState extends State<_UserInviteTile> {
 }
 
 class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
+  late CompetitionItem _item;
   bool isExpanded = false;
   bool isBookmarked = false;
   bool isSending = false;
@@ -645,12 +772,13 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _item = widget.item;
     _loadMyStatus();
   }
 
   Future<void> _loadMyStatus() async {
     final status =
-        await CompetitionService.getMyRequestStatus(widget.item.id);
+        await CompetitionService.getMyRequestStatus(_item.id);
     if (mounted) {
       setState(() {
         myRequestStatus = status;
@@ -668,7 +796,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
 
     setState(() => isSending = true);
     try {
-      await CompetitionService.sendParticipationRequest(widget.item);
+      await CompetitionService.sendParticipationRequest(_item);
       if (!mounted) return;
       setState(() {
         myRequestStatus = 'pending';
@@ -688,9 +816,25 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
     );
   }
 
+  bool get _isOwner =>
+      FirebaseAuth.instance.currentUser?.uid == _item.ownerId;
+
+  Future<void> _openEditScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CompetitionFormScreen(editItem: _item),
+      ),
+    );
+    final latest = await CompetitionService.getCompetition(_item.id);
+    if (!mounted || latest == null) return;
+    setState(() => _item = latest);
+    _showSnack('Тэмцээний мэдээлэл шинэчлэгдлээ');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
+    final item = _item;
     const yellow = Color(0xFFF5C400);
     const orange = Color(0xFFFF6A00);
 
@@ -718,6 +862,19 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                 ),
               ),
               actions: [
+                if (_isOwner) ...[
+                  CircleAvatar(
+                    backgroundColor:
+                        Colors.white.withValues(alpha: 0.9),
+                    child: IconButton(
+                      tooltip: 'Тэмцээн засах',
+                      icon: const Icon(Icons.edit_outlined,
+                          color: Colors.black),
+                      onPressed: _openEditScreen,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 CircleAvatar(
                   backgroundColor:
                       Colors.white.withValues(alpha: 0.9),
@@ -748,7 +905,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _networkImage(item.imageUrl, double.infinity),
+                    _networkImage(item.displayImageUrl, double.infinity),
                     Container(
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
@@ -824,8 +981,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                       const SizedBox(height: 18),
                     ],
 
-                    if (FirebaseAuth.instance.currentUser?.uid ==
-                        item.ownerId) ...[
+                    if (_isOwner) ...[
                       _sectionTitle('Тэмцээний үр дүн'),
                       const SizedBox(height: 10),
                       _resultEntryCard(item, orange),
@@ -865,7 +1021,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                     // Poster
                     _sectionTitle('Poster'),
                     const SizedBox(height: 12),
-                    _posterWidget(item.posterUrl),
+                    _posterWidget(item.displayPosterUrl),
 
                     // Link
                     if (item.linkText.isNotEmpty) ...[
@@ -1046,7 +1202,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Баг үүсгэх'),
+              label: const Text('Багаа удирдах'),
             ),
           ],
         ),
@@ -1078,7 +1234,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Эхний багийг үүсгээд гишүүдээ invite хийнэ үү.',
+                      'Эхний багийг үүсгээд энэ хуудсан дээрээс гишүүдээ invite хийнэ үү.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
@@ -1216,7 +1372,7 @@ class _CompetitionDetailScreenState extends State<CompetitionDetailScreen> {
           ),
           icon: const Icon(Icons.groups_2_outlined),
           label: const Text(
-            'Баг үүсгэх / Team management',
+            'Багаа бүртгүүлэх / удирдах',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
           ),
           style: ElevatedButton.styleFrom(

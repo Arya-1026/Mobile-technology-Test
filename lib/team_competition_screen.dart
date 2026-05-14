@@ -75,9 +75,9 @@ class CompetitionCard extends StatelessWidget {
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: item.imageUrl.isEmpty
+              child: item.displayImageUrl.isEmpty
                   ? Container(width: 92, height: 92, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported_outlined))
-                  : Image.network(item.imageUrl, width: 92, height: 92, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 92, height: 92, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported_outlined))),
+                  : Image.network(item.displayImageUrl, width: 92, height: 92, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 92, height: 92, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported_outlined))),
             ),
             const SizedBox(width: 12),
             Expanded(

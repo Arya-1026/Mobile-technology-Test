@@ -102,6 +102,8 @@ class CompetitionTeam {
   final String competitionId;
   final String competitionTitle;
   final String sportCategory;
+  final String competitionDate;
+  final String competitionLocation;
   final String name;
   final String description;
   final String logoUrl;
@@ -118,6 +120,8 @@ class CompetitionTeam {
     required this.competitionId,
     required this.competitionTitle,
     required this.sportCategory,
+    this.competitionDate = '',
+    this.competitionLocation = '',
     required this.name,
     required this.description,
     required this.logoUrl,
@@ -137,6 +141,8 @@ class CompetitionTeam {
       competitionId: data['competitionId'] ?? '',
       competitionTitle: data['competitionTitle'] ?? '',
       sportCategory: data['sportCategory'] ?? '',
+      competitionDate: data['competitionDate'] ?? '',
+      competitionLocation: data['competitionLocation'] ?? '',
       name: data['name'] ?? '',
       description: data['description'] ?? '',
       logoUrl: data['logoUrl'] ?? '',
@@ -228,6 +234,14 @@ class RegisteredCompetition {
   final String matchResult;
   final String resultStatus;
   final String score;
+  final String tournamentStatus;
+  final String currentRound;
+  final String nextOpponent;
+  final String matchTime;
+  final String bracketSummary;
+  final String eliminatedRound;
+  final String finalResult;
+  final List<Map<String, dynamic>> matchHistory;
   final DateTime? createdAt;
 
   RegisteredCompetition({
@@ -245,6 +259,14 @@ class RegisteredCompetition {
     this.matchResult = '',
     this.resultStatus = '',
     this.score = '',
+    this.tournamentStatus = 'Active',
+    this.currentRound = '',
+    this.nextOpponent = '',
+    this.matchTime = '',
+    this.bracketSummary = '',
+    this.eliminatedRound = '',
+    this.finalResult = '',
+    this.matchHistory = const [],
     this.createdAt,
   });
 
@@ -265,6 +287,16 @@ class RegisteredCompetition {
       matchResult: data['matchResult'] ?? '',
       resultStatus: data['resultStatus'] ?? '',
       score: data['score'] ?? '',
+      tournamentStatus: data['tournamentStatus'] ?? 'Active',
+      currentRound: data['currentRound'] ?? '',
+      nextOpponent: data['nextOpponent'] ?? '',
+      matchTime: data['matchTime'] ?? '',
+      bracketSummary: data['bracketSummary'] ?? '',
+      eliminatedRound: data['eliminatedRound'] ?? '',
+      finalResult: data['finalResult'] ?? '',
+      matchHistory: (data['matchHistory'] as List<dynamic>? ?? [])
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(),
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
@@ -286,6 +318,7 @@ class BracketMatch {
   final String score;
   final String status;
   final String note;
+  final String matchTime;
   final DateTime? updatedAt;
 
   BracketMatch({
@@ -302,6 +335,7 @@ class BracketMatch {
     this.score = '',
     this.status = 'Scheduled',
     this.note = '',
+    this.matchTime = '',
     this.updatedAt,
   });
 
@@ -320,6 +354,60 @@ class BracketMatch {
       loserTeamId: data['loserTeamId'] ?? '',
       score: data['score'] ?? '',
       status: data['status'] ?? 'Scheduled',
+      note: data['note'] ?? '',
+      matchTime: data['matchTime'] ?? '',
+      updatedAt: data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : null,
+    );
+  }
+}
+
+class MatchResult {
+  final String id;
+  final String competitionId;
+  final String matchId;
+  final int round;
+  final int matchNo;
+  final String winnerTeamId;
+  final String winnerTeamName;
+  final String loserTeamId;
+  final String loserTeamName;
+  final String score;
+  final String status;
+  final String note;
+  final DateTime? updatedAt;
+
+  MatchResult({
+    required this.id,
+    required this.competitionId,
+    required this.matchId,
+    required this.round,
+    required this.matchNo,
+    required this.winnerTeamId,
+    required this.winnerTeamName,
+    required this.loserTeamId,
+    required this.loserTeamName,
+    required this.score,
+    required this.status,
+    required this.note,
+    this.updatedAt,
+  });
+
+  factory MatchResult.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return MatchResult(
+      id: doc.id,
+      competitionId: data['competitionId'] ?? '',
+      matchId: data['matchId'] ?? '',
+      round: (data['round'] ?? 1) as int,
+      matchNo: (data['matchNo'] ?? 1) as int,
+      winnerTeamId: data['winnerTeamId'] ?? '',
+      winnerTeamName: data['winnerTeamName'] ?? '',
+      loserTeamId: data['loserTeamId'] ?? '',
+      loserTeamName: data['loserTeamName'] ?? '',
+      score: data['score'] ?? '',
+      status: data['status'] ?? '',
       note: data['note'] ?? '',
       updatedAt: data['updatedAt'] is Timestamp
           ? (data['updatedAt'] as Timestamp).toDate()
@@ -449,10 +537,20 @@ class CompetitionItem {
     }
   }
 
+  String get displayImageUrl => imageUrl.isNotEmpty ? imageUrl : posterUrl;
+  String get displayPosterUrl => posterUrl.isNotEmpty ? posterUrl : imageUrl;
+
   factory CompetitionItem.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     DateTime? toDate(dynamic value) =>
         value is Timestamp ? value.toDate() : null;
+    String firstString(List<String> keys) {
+      for (final key in keys) {
+        final value = data[key];
+        if (value is String && value.trim().isNotEmpty) return value.trim();
+      }
+      return '';
+    }
 
     return CompetitionItem(
       id: doc.id,
@@ -467,8 +565,22 @@ class CompetitionItem {
       organizationName: data['organizationName'] ?? '',
       fee: data['fee'] ?? '',
       materials: data['materials'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      posterUrl: data['posterUrl'] ?? '',
+      imageUrl: firstString([
+        'imageUrl',
+        'imageURL',
+        'image',
+        'coverUrl',
+        'coverImage',
+        'thumbnailUrl',
+        'photoUrl',
+      ]),
+      posterUrl: firstString([
+        'posterUrl',
+        'posterURL',
+        'poster',
+        'posterImageUrl',
+        'bannerUrl',
+      ]),
       linkText: data['linkText'] ?? '',
       ownerId: data['ownerId'] ?? '',
       ownerEmail: data['ownerEmail'] ?? '',
@@ -504,6 +616,8 @@ class CompetitionItem {
       'materials': materials,
       'imageUrl': imageUrl,
       'posterUrl': posterUrl,
+      'coverUrl': imageUrl,
+      'thumbnailUrl': imageUrl,
       'linkText': linkText,
       'ownerId': ownerId,
       'ownerEmail': ownerEmail,
